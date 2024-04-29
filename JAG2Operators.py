@@ -56,7 +56,7 @@ class GLMImport(bpy.types.Operator):
     glaOverride: bpy.props.StringProperty(
         name=".gla override", description="Gla file to use, relative to base. Leave empty to use the one referenced in the file.", maxlen=64, default="")  # pyright: ignore [reportInvalidTypeForm]
     scale: bpy.props.FloatProperty(
-        name="Scale", description="Scale to apply to the imported model.", default=10, min=0, max=1000, subtype='PERCENTAGE')  # pyright: ignore [reportInvalidTypeForm]
+        name="Scale", description="Scale to apply to the imported model.", default=100, min=0, max=1000, subtype='PERCENTAGE')  # pyright: ignore [reportInvalidTypeForm]
     skeletonFixes: bpy.props.EnumProperty(name="skeleton changes", description="You can select a preset for automatic skeleton changes which result in a nicer imported skeleton.", default='NONE', items=[
         (SkeletonFixes.NONE.value, "None", "Don't change the skeleton in any way.", 0),
         (SkeletonFixes.JKA_HUMANOID.value, "Jedi Academy _humanoid",
@@ -191,7 +191,7 @@ class GLMExport(bpy.types.Operator):
     basepath: bpy.props.StringProperty(
         name="Base Path", description="The base folder relative to which paths should be interpreted. Leave empty to let the exporter guess (needs /GameData/ in filepath).", default="")  # pyright: ignore [reportInvalidTypeForm]
     gla: bpy.props.StringProperty(
-        name=".gla name", description="Name of the skeleton this model uses (must exist!)", default="models/players/_humanoid/_humanoid")  # pyright: ignore [reportInvalidTypeForm]
+        name=".gla name", description="Name of the skeleton this model uses (must exist!)", default="models/players/")  # pyright: ignore [reportInvalidTypeForm]
 
     def execute(self, context):
         print("\n== GLM Export ==\n")

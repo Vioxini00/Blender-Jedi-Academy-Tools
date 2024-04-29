@@ -23,8 +23,8 @@ from . import JAStringhelper
 from . import JAG2Constants
 from . import JAG2Math
 from . import MrwProfiler
-from .casts import optional_cast, downcast, bpy_generic_cast, matrix_getter_cast, matrix_overload_cast, vector_getter_cast
-from .error_types import ErrorMessage, NoError, ensureListIsGapless
+from .casts import optional_cast, downcast, bpy_generic_cast, matrix_getter_cast, matrix_overload_cast, optional_list_cast, vector_getter_cast
+from .error_types import ErrorMessage, NoError
 
 from typing import BinaryIO, Dict, List, Optional, Tuple
 from enum import Enum
@@ -287,7 +287,7 @@ class MdxaSkel:
 
 class MdxaFrame:
     def __init__(self):
-        self.boneIndices: List[int] = []
+        self.boneIndices = []
 
     # returns the highest referenced index - not nice from a design standpoint but saves space, which is probably good.
     def loadFromFile(self, file, numBones):
@@ -325,7 +325,7 @@ class MdxaBonePool:
 
 class MdxaAnimation:
     def __init__(self):
-        self.frames: List[MdxaFrame] = []
+        self.frames = []
         self.bonePool = MdxaBonePool()
 
     def loadFromFile(self, file: BinaryIO, header: MdxaHeader, startFrame: int, numFrames: int) -> Tuple[bool, ErrorMessage]:
@@ -391,13 +391,13 @@ class MdxaAnimation:
         assert (file.tell() == header.ofsCompBonePool)
         self.bonePool.saveToFile(file)
 
-    def saveToBlender(self, skeleton: MdxaSkel, armature: bpy.types.Object, scale):
+    def saveToBlender(self, skeleton, armature, scale):
         import time
         startTime = time.time()
         #   Bone Position Set Order
         # bones have to be set in hierarchical order - their position depends on their parent's absolute position, after all.
         # so this is the order in which bones have to be processed.
-        hierarchyOrder: List[int] = []
+        hierarchyOrder = []
         while len(hierarchyOrder) < len(skeleton.bones):
             # make sure we add something each frame (infinite loop otherwise)
             addedSomething = False
@@ -414,11 +414,11 @@ class MdxaAnimation:
         # for going leaf to root
 
         #   Blender PoseBones list
-        bones: List[bpy.types.PoseBone] = []
+        bones = []
         for info in skeleton.bones:  # is ordered by index
             bones.append(armature.pose.bones[info.name])
 
-        basePoses: List[mathutils.Matrix] = []
+        basePoses = []
         for bone in skeleton.bones:
             basePoses.append(bone.basePoseMat.toBlender())
 
@@ -465,32 +465,32 @@ class MdxaAnimation:
             scene.frame_set(frameNum)
 
             # absolute offset matrices by bone index
-            offsets: Dict[int, mathutils.Matrix] = {}
+            offsets = {}
             for index in hierarchyOrder:
                 bpy.ops.object.mode_set(mode='POSE', toggle=False)
                 mdxaBone = skeleton.bones[index]
                 assert (mdxaBone.index == index)
                 bonePoolIndex = frame.boneIndices[index]
                 # get offset transformation matrix, relative to parent
-                offset = downcast(List[JAG2Math.CompBone], self.bonePool.bones)[bonePoolIndex].matrix
+                offset = self.bonePool.bones[bonePoolIndex].matrix
                 # turn into absolute offset matrix (already is if this is top level bone)
                 if mdxaBone.parent != -1:
-                    offset = matrix_overload_cast(offsets[mdxaBone.parent] @ offset)
+                    offset = offsets[mdxaBone.parent] @ offset
                 # save this absolute offset for use by children
                 offsets[index] = offset
                 # calculate the actual position
-                transformation = matrix_overload_cast(offset @ basePoses[index])
+                transformation = offset @ basePoses[index]
                 # flip axes as required for blender bone
                 JAG2Math.GLABoneRotToBlender(transformation)
 
                 pose_bone = bones[index]
                 # pose_bone.matrix = transformation * scaleMatrix
                 pose_bone.matrix = transformation
-                # in the _humanoid face, the scale gets changed. that messes the re-export up. FIXME: understand why. Is there a problem?
+                # in the _humanoid face, the scale gets changed. that messes the re-export up.
                 pose_bone.scale = [1, 1, 1]
                 pose_bone.keyframe_insert('location')
                 pose_bone.keyframe_insert('rotation_quaternion')
-                # hackish way to force the matrix to update. FIXME: this seems to slow the process down a lot
+                # hackish way to force the matrix to update
                 bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 
         scene.frame_current = 1
@@ -677,7 +677,6 @@ class GLA:
             absoluteBoneOffsets: List[Optional[mathutils.Matrix]] = [None] * self.header.numBones
 
             unprocessed = list(range(self.header.numBones))
-            # FIXME: instead of doing this once per frame, cache the correct processing order
             while len(unprocessed) > 0:
                 # make sure we're not looping infinitely (shouldn't be possible)
                 progressed = False
@@ -716,11 +715,8 @@ class GLA:
 
                 assert (progressed)
 
-            gaplessRelativeBoneOffsets, err = ensureListIsGapless(relativeBoneOffsets)
-            if gaplessRelativeBoneOffsets is None:
-                return False, ErrorMessage(f"internal error: did not calculate all bone transformations: {err}")
             # then write precalculated offsets:
-            for offset in gaplessRelativeBoneOffsets:
+            for offset in optional_list_cast(List[mathutils.Matrix], relativeBoneOffsets):
 
                 # compress that offset
                 compOffset = JAG2Math.CompBone.compress(offset)

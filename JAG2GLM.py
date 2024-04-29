@@ -30,8 +30,8 @@ from . import JAG2GLA
 from . import JAMaterialmanager
 from . import MrwProfiler
 from . import JAG2Panels
-from .casts import optional_cast, downcast, bpy_generic_cast, unpack_cast, matrix_getter_cast, vector_getter_cast, vector_overload_cast
-from .error_types import ErrorMessage, NoError, ensureListIsGapless
+from .casts import optional_cast, downcast, bpy_generic_cast, optional_list_cast, unpack_cast, matrix_getter_cast, vector_getter_cast, vector_overload_cast
+from .error_types import ErrorMessage, NoError
 
 import bpy
 import mathutils
@@ -331,10 +331,10 @@ class MdxmSurfaceDataCollection:
         success, message = addChildren(rootObject)
         if not success:
             return False, message
-        gaplessSurfaces, err = ensureListIsGapless(surfaces)
-        if gaplessSurfaces is None:
-            return False, ErrorMessage(f"Internal error during hierarchy creation! (Missing Surfaces: {err})")
-        self.surfaces = gaplessSurfaces
+        emptyIndices = [i for i, x in enumerate(surfaces) if x is None]
+        if len(emptyIndices) > 0:  # a surface that was referenced did not get created
+            return False, ErrorMessage(f"Internal error during hierarchy creation! (Surfaces {emptyIndices} referenced but not created)")
+        self.surfaces = optional_list_cast(List[MdxmSurfaceData], surfaces)
         return True, NoError
 
     def saveToFile(self, file: BinaryIO) -> None:
@@ -629,10 +629,11 @@ class MdxmSurface:
             boneReferences: List[Optional[int]] = [None] * len(boneIndices)
             for boneName, index in boneIndices.items():
                 boneReferences[index] = boneIndexMap[boneName]
-            gaplessBoneReferences, err = ensureListIsGapless(boneReferences)
-            if gaplessBoneReferences is None:
-                return False, ErrorMessage(f"bug: boneIndexMap left gaps: {err}")
-            self.boneReferences = gaplessBoneReferences
+            missingIndices = [i for i, x in enumerate(boneReferences) if x is None]
+            if len(missingIndices) > 0:
+                return False, ErrorMessage(f"bug: boneIndexMap did not fill indices {missingIndices}")
+
+            self.boneReferences = optional_list_cast(List[int], boneReferences)
 
         self._calculateOffsets()
         return True, NoError
@@ -854,13 +855,13 @@ class MdxmLOD:
                 surf.makeEmpty()
             # add surface to list
             surfaces[index] = surf
-        gaplessSurfaces, err = ensureListIsGapless(surfaces)
-        if gaplessSurfaces is None:
-            return None, ErrorMessage(f"internal error: surface index map incomplete: {err}")
+        missingIndices = [i for i, x in enumerate(surfaces) if x is None]
+        if len(missingIndices) > 0:
+            return None, ErrorMessage(f"internal error: surface index map has missing indices {missingIndices}")
         return MdxmLOD(
             surfaceOffsets=[],  # FIXME: avoid this invalid state
             level=level,
-            surfaces=gaplessSurfaces,
+            surfaces=optional_list_cast(List[MdxmSurface], surfaces),
             ofsEnd=-1,  # FIXME: avoid this invalid state
         ), NoError
 

@@ -19,10 +19,7 @@ def optional_cast(t: Type[T], v: Optional[T]) -> T:
     return cast(t, v)
 
 
-def optional_list_cast(t: Type[List[T]], v: List[Optional[T]]) -> List[T]:
-    """
-    Avoid using this directly, use error_types.ensureListIsGapless instead.
-    """
+def optional_list_cast(t: Type[List[T]], v: List[Optional[T]]) -> List[T]:  # TODO replace with error-returning helper
     return cast(t, v)
 
 
@@ -59,7 +56,7 @@ def vector_overload_cast(x: Any) -> mathutils.Vector:
     return overload_cast(mathutils.Vector, x)
 
 
-def matrix_overload_cast(x: mathutils.Matrix | mathutils.Vector) -> mathutils.Matrix:
+def matrix_overload_cast(x: Any) -> mathutils.Matrix:
     """
     Shorthand for overload_cast(mathutils.Matrix, x).
     Matrix and Quaternion multiplication currently lacks overloads to distinguish matrix returns.
